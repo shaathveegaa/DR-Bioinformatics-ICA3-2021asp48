@@ -1,0 +1,756 @@
+---
+title: "Comparative Transcriptomic Analysis of Diabetic Retinopathy"
+subtitle: "Bioinformatics ICA 3 — GSE160306"
+author: "Bioinformatics ICA 3"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    theme: readable
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  comment = "#>"
+)
+
+# ============================================================
+# SET PROJECT DIRECTORY
+# ============================================================
+
+project_dir <- "C:/Users/shaat/OneDrive/Desktop/DR_Bioinformatics_ICA3"
+
+if (!dir.exists(project_dir)) {
+  stop("Project folder not found. Please check project_dir.")
+}
+
+# Create absolute paths
+data_dir <- file.path(project_dir, "data")
+results_dir <- file.path(project_dir, "results")
+plots_dir <- file.path(results_dir, "plots")
+tables_dir <- file.path(results_dir, "tables")
+
+# ============================================================
+# CHECK DATASET FILE
+# ============================================================
+
+dataset_file <- file.path(
+  data_dir,
+  "GSE160306_human_retina_DR_totalRNA_counts.txt"
+)
+
+if (!file.exists(dataset_file)) {
+  stop(
+    "Dataset file not found. Expected location: ",
+    dataset_file
+  )
+}
+```
+
+# 1. Project overview
+
+This project investigates gene-expression changes associated with different stages of diabetic retinopathy (DR) using the publicly available GSE160306 dataset from the NCBI Gene Expression Omnibus (GEO).
+
+The project uses R programming for transcriptomic data exploration, quality assessment, statistical analysis, visualization, and biological interpretation.
+
+The analysis aims to identify genes and biological pathways that may be associated with diabetic retinopathy.
+
+# 2. Research aim
+
+To perform a comparative transcriptomic analysis of gene-expression changes across the available stages of diabetic retinopathy using the GSE160306 dataset.
+
+## 2.1 Research objectives
+
+1. Import and explore the raw gene-expression count dataset.
+2. Inspect sample information and identify disease groups and retinal sites.
+3. Perform data preprocessing and quality assessment.
+4. Visualize gene-expression patterns using different plots.
+5. Identify differentially expressed genes between disease groups and controls.
+6. Investigate biological processes and pathways associated with differentially expressed genes.
+7. Interpret the results and determine whether gene-expression changes are associated with diabetic retinopathy.
+
+## 2.2 Research questions
+
+1. Which genes show significant expression differences between healthy controls and diabetic retinopathy samples?
+2. How do gene-expression patterns differ across the available disease groups?
+3. Which biological processes and pathways are associated with the identified differentially expressed genes?
+
+# 3. Dataset information
+
+The dataset was obtained from the NCBI Gene Expression Omnibus database.
+
+- **Dataset accession:** GSE160306
+- **Source:** NCBI Gene Expression Omnibus
+- **Organism:** Homo sapiens
+- **Data type:** RNA-sequencing gene-expression counts
+- **Original file:** GSE160306_human_retina_DR_totalRNA_counts.txt
+
+[Open the GSE160306 GEO record](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE160306).
+
+The raw count file is stored in the project's `data/` folder.
+
+# 4. Software and packages
+
+The project uses the following tools:
+
+| Tool or package | Purpose |
+|---|---|
+| R | Statistical analysis and programming |
+| RStudio | R development environment |
+| GEOquery | Retrieving GEO sample information |
+| DESeq2 | Differential gene expression analysis |
+| ggplot2 | Creating statistical plots |
+| pheatmap | Creating heatmaps |
+| clusterProfiler | GO and KEGG enrichment analysis |
+| org.Hs.eg.db | Human gene annotation |
+| Git and GitHub | Version control and project documentation |
+| R Markdown | Creating the final research report |
+
+# 5. Data importation
+
+The original count file is imported using the absolute project path. This avoids errors caused by different working directories during R Markdown knitting.
+
+```{r import-data}
+# ============================================================
+# IMPORT RAW COUNT DATA
+# ============================================================
+
+# Read the first line to identify the file delimiter.
+first_line <- readLines(dataset_file, n = 1, warn = FALSE)
+
+if (length(first_line) == 0 || is.na(first_line[1]) || first_line[1] == "") {
+  stop("The dataset file is empty. Check the file in the data folder.")
+}
+
+# Remove a possible UTF-8 byte-order mark from the first column name.
+first_line <- sub("^\ufeff", "", first_line)
+
+tab_count <- lengths(regmatches(first_line, gregexpr("\t", first_line, fixed = TRUE)))
+comma_count <- lengths(regmatches(first_line, gregexpr(",", first_line, fixed = TRUE)))
+semicolon_count <- lengths(regmatches(first_line, gregexpr(";", first_line, fixed = TRUE)))
+
+# Select the delimiter that appears most often in the header.
+delimiter_counts <- c(
+  tab = tab_count,
+  comma = comma_count,
+  semicolon = semicolon_count
+)
+
+if (max(delimiter_counts) > 0) {
+  selected_delimiter <- names(which.max(delimiter_counts))
+
+  selected_separator <- switch(
+    selected_delimiter,
+    tab = "\t",
+    comma = ",",
+    semicolon = ";"
+  )
+
+  counts <- read.table(
+    dataset_file,
+    header = TRUE,
+    sep = selected_separator,
+    check.names = FALSE,
+    stringsAsFactors = FALSE,
+    quote = "",
+    comment.char = "",
+    fill = FALSE
+  )
+} else {
+  # Fallback for files separated by spaces or other whitespace.
+  counts <- read.table(
+    dataset_file,
+    header = TRUE,
+    sep = "",
+    check.names = FALSE,
+    stringsAsFactors = FALSE,
+    quote = "",
+    comment.char = "",
+    fill = FALSE
+  )
+}
+
+# Confirm that the file was split into a gene ID column
+# and at least one sample column.
+if (ncol(counts) < 2) {
+  cat("Detected header line:\n", first_line, "\n")
+  cat("Imported column count:", ncol(counts), "\n")
+  stop(
+    "The dataset was imported as only one column. ",
+    "The file may not be the expected tabular count matrix. ",
+    "Check that the correct GSE160306 count file is in the data folder."
+  )
+}
+
+# Standardize the first column name as ensemblID.
+names(counts)[1] <- "ensemblID"
+
+# Remove accidental spaces around gene identifiers.
+counts$ensemblID <- trimws(as.character(counts$ensemblID))
+
+if (any(is.na(counts$ensemblID)) || any(counts$ensemblID == "")) {
+  stop("The first column contains missing or empty gene identifiers.")
+}
+
+cat("Dataset imported successfully!\n")
+cat("Detected separator:", selected_delimiter, "\n")
+cat("Gene ID column:", names(counts)[1], "\n")
+cat("Number of genes:", nrow(counts), "\n")
+cat("Number of samples:", ncol(counts) - 1, "\n")
+
+dim(counts)
+```
+The first column contains Ensembl gene identifiers. The remaining columns represent individual samples.
+
+# 6. Initial dataset exploration
+
+Initial dataset exploration was performed to understand the structure, size, and quality of the raw count data.
+
+## 6.1 Dataset dimensions
+
+```{r dimensions}
+dataset_dimensions <- data.frame(
+  Measurement = c(
+    "Total genes",
+    "Total columns",
+    "Total samples"
+  ),
+  Value = c(
+    nrow(counts),
+    ncol(counts),
+    ncol(counts) - 1
+  )
+)
+
+knitr::kable(
+  dataset_dimensions,
+  caption = "Dimensions of the GSE160306 dataset"
+)
+```
+
+The dataset contains gene records in rows and sample information in columns.
+
+## 6.2 Dataset preview
+
+```{r preview}
+head(counts)
+```
+
+The first few rows are displayed to examine the Ensembl identifiers and raw count values.
+
+## 6.3 Data structure
+
+```{r structure}
+str(counts)
+```
+
+The Ensembl gene identifier column is expected to contain character values, while the sample count columns should contain integer values.
+
+This check helps confirm that the dataset was imported correctly.
+
+## 6.4 Missing-value check
+
+```{r missing-values}
+missing_values <- sum(is.na(counts))
+
+missing_summary <- data.frame(
+  Measurement = "Missing values",
+  Value = missing_values
+)
+
+knitr::kable(
+  missing_summary,
+  caption = "Missing-value assessment"
+)
+```
+
+Missing values can affect downstream statistical analysis. Therefore, they are checked before further processing.
+
+## 6.5 Duplicate gene identifier check
+
+```{r duplicate-ids}
+# The import section standardizes the first column name to ensemblID.
+# Use the first column to check for repeated gene identifiers.
+gene_ids <- as.character(counts[[1]])
+
+duplicate_gene_ids <- sum(duplicated(gene_ids))
+
+duplicate_summary <- data.frame(
+  Measurement = "Duplicate Ensembl gene IDs",
+  Value = duplicate_gene_ids
+)
+
+knitr::kable(
+  duplicate_summary,
+  caption = "Duplicate gene identifier assessment"
+)
+```
+
+Duplicate gene identifiers are checked to identify repeated gene records in the dataset.
+
+## 6.6 Create the count matrix
+
+```{r count-matrix}
+count_matrix <- as.matrix(
+  counts[, -1, drop = FALSE]
+)
+
+storage.mode(count_matrix) <- "numeric"
+
+cat("Number of genes:", nrow(count_matrix), "\n")
+cat("Number of samples:", ncol(count_matrix), "\n")
+```
+
+The Ensembl identifier column is excluded from the expression matrix because the matrix contains only sample-level count values.
+
+## 6.7 Raw count range
+
+```{r count-range}
+count_range <- data.frame(
+  Measurement = c(
+    "Minimum raw count",
+    "Maximum raw count"
+  ),
+  Value = c(
+    min(count_matrix, na.rm = TRUE),
+    max(count_matrix, na.rm = TRUE)
+  )
+)
+
+knitr::kable(
+  count_range,
+  caption = "Range of raw gene-expression counts"
+)
+```
+
+The count range provides an overview of the variation in raw gene-expression values.
+
+## 6.8 Combined dataset exploration summary
+
+```{r exploration-summary}
+exploration_summary <- data.frame(
+  Total_Genes = nrow(counts),
+  Total_Columns = ncol(counts),
+  Total_Samples = ncol(counts) - 1,
+  Missing_Values = sum(is.na(counts)),
+  Duplicate_Gene_IDs = sum(duplicated(as.character(counts[[1]]))),
+  Minimum_Count = min(count_matrix, na.rm = TRUE),
+  Maximum_Count = max(count_matrix, na.rm = TRUE)
+)
+
+knitr::kable(
+  exploration_summary,
+  caption = "Summary of initial dataset exploration"
+)
+```
+
+# 7. Interpretation of initial exploration
+
+The initial dataset exploration previously performed in RStudio produced the following results:
+
+| Measurement | Result |
+|---|---:|
+| Total genes | 58,051 |
+| Total columns | 80 |
+| Total samples | 79 |
+| Missing values | 0 |
+| Duplicate gene IDs | 0 |
+| Minimum raw count | 0 |
+| Maximum raw count | 2,983,141 |
+
+The dataset contains 58,051 gene records and 79 samples. No missing values or duplicate Ensembl identifiers were detected during the initial checks.
+
+The raw expression counts show considerable variation between genes and samples.
+
+These results indicate that the dataset can proceed to further metadata inspection and quality assessment. However, initial exploration alone cannot establish significant differences between disease groups.
+
+# 8. Sample metadata preparation
+
+Sample metadata is required to identify the disease group and retinal location associated with each sample.
+
+A separate metadata template was created with the following columns:
+
+| Column | Description |
+|---|---|
+| sample_id | Sample identifier from the count matrix |
+| Disease_Group | Disease classification |
+| Retinal_Site | Retinal location |
+
+The metadata template is stored at:
+
+`data/sample_metadata_template.csv`
+
+The following code checks whether the metadata template exists.
+
+```{r metadata-check}
+metadata_file <- file.path(
+  data_dir,
+  "sample_metadata_template.csv"
+)
+
+if (file.exists(metadata_file)) {
+
+  sample_metadata <- read.csv(
+    metadata_file,
+    stringsAsFactors = FALSE
+  )
+
+  cat("Metadata file found.\n")
+  cat("Number of metadata records:",
+      nrow(sample_metadata), "\n")
+
+  head(sample_metadata)
+
+} else {
+
+  cat("Metadata template has not been created yet.\n")
+
+}
+```
+
+The sample identifiers must be matched with GEO sample information before assigning disease groups and retinal locations.
+
+Incorrect sample classification could produce misleading statistical results.
+
+# 9. Data visualizations
+
+Visualizations are important for understanding gene-expression patterns and identifying relationships between samples.
+
+The project includes the following planned or generated visualizations.
+
+## 9.1 PCA scatter plot
+
+Principal Component Analysis (PCA) is used to reduce the dimensionality of gene-expression data.
+
+Each point in the PCA scatter plot represents one sample.
+
+The plot helps examine:
+
+- Similarities between samples.
+- Differences in overall expression patterns.
+- Possible sample clustering.
+- Potential outlier samples.
+
+Samples located close together have more similar expression profiles, while samples located farther apart have more different expression profiles.
+
+PCA separation does not independently prove statistical significance.
+
+```{r pca-image, echo=FALSE, out.width="95%", fig.align="center", fig.cap="Figure: PCA scatter plot of retinal gene-expression profiles."}
+image_file <- file.path(plots_dir, "02_PCA_scatter_plot.png")
+if (file.exists(image_file)) {
+  knitr::include_graphics(image_file)
+} else {
+  cat("Image not found: 02_PCA_scatter_plot.png. Save this image in the results/plots folder.")
+}
+```
+
+
+### Sequencing library sizes
+
+```{r library-size-image, echo=FALSE, out.width="95%", fig.align="center", fig.cap="Figure: Sequencing library sizes across retinal samples."}
+image_file <- file.path(plots_dir, "library_sizes.png")
+if (file.exists(image_file)) {
+  knitr::include_graphics(image_file)
+} else {
+  cat("Image not found: library_sizes.png. Save this image in the results/plots folder.")
+}
+```
+
+## 9.2 Sample count plot
+
+The sample count plot displays the number of samples in each verified disease group.
+
+This visualization helps identify whether the groups contain equal or unequal numbers of samples.
+
+Unequal sample sizes should be considered when interpreting statistical comparisons.
+
+```{r sample-count-image, echo=FALSE, out.width="95%", fig.align="center", fig.cap="Figure: Distribution of retinal samples across disease groups."}
+image_file <- file.path(plots_dir, "03_sample_count_plot.png")
+if (file.exists(image_file)) {
+  knitr::include_graphics(image_file)
+} else {
+  cat("Image not found: 03_sample_count_plot.png. Save this image in the results/plots folder.")
+}
+```
+
+
+## 9.3 Gene expression heatmap
+
+A heatmap was created using the 30 most variable genes.
+
+It visualizes gene-expression patterns across samples.
+
+The heatmap includes sample annotations for disease groups and retinal locations.
+
+The displayed disease group annotations include Control, Diabetic, DME, and NPDR, while retinal site annotations include Macula and Periphery.
+
+The heatmap helps identify similarities and differences in expression patterns.
+
+However, a heatmap of variable genes does not independently prove that those genes are significantly associated with diabetic retinopathy.
+
+It should be interpreted together with the differential expression analysis.
+
+```{r annotated-heatmap-image, echo=FALSE, out.width="95%", fig.align="center", fig.cap="Figure: Annotated heatmap of the top variable genes, including sample annotations."}
+image_file <- file.path(plots_dir, "01_annotated_heatmap.png")
+if (file.exists(image_file)) {
+  knitr::include_graphics(image_file)
+} else {
+  cat("Image not found: 01_annotated_heatmap.png. Save this image in the results/plots folder.")
+}
+```
+
+
+
+
+
+## 9.4 Volcano plots
+
+Volcano plots are intended to visualize differential expression results.
+
+They display:
+
+- Log2 fold change.
+- Statistical significance.
+- Upregulated genes.
+- Downregulated genes.
+
+Genes with positive log2 fold change show increased expression in the comparison group, while negative values indicate decreased expression.
+
+```{r volcano-image, echo=FALSE, out.width="95%", fig.align="center", fig.cap="Figure: Volcano plot of differential gene expression in NPDR versus Control."}
+image_file <- file.path(plots_dir, "volcano_NPDR_Control.png")
+if (file.exists(image_file)) {
+  knitr::include_graphics(image_file)
+} else {
+  cat("Image not found: volcano_NPDR_Control.png. Save this image in the results/plots folder.")
+}
+```
+
+
+## 9.5 GO and KEGG enrichment plots
+
+GO and KEGG plots are intended to summarize the biological functions and pathways associated with significant differentially expressed genes.
+
+These visualizations will help interpret the biological significance of the identified genes.
+
+# 10. CSV files generated by the project
+
+CSV files are used to store analysis results in a structured format.
+
+They allow the results to be reviewed independently and reused in the final report.
+
+The project workflow includes the following output files.
+
+| CSV file | Purpose |
+|---|---|
+| sample_metadata_template.csv | Stores sample IDs, disease groups and retinal sites |
+| normalized_counts.csv | Stores normalized expression values |
+| DEG_Diabetic_vs_Control.csv | Differential expression results for Diabetic versus Control |
+| DEG_DME_vs_Control.csv | Differential expression results for DME versus Control |
+| DEG_NPDR_vs_Control.csv | Differential expression results for NPDR versus Control |
+| Significant_DEGs_*.csv | Stores genes passing the selected significance thresholds |
+| Upregulated_DEGs_*.csv | Stores significantly upregulated genes |
+| Downregulated_DEGs_*.csv | Stores significantly downregulated genes |
+| GO_*.csv | Stores Gene Ontology enrichment results |
+| KEGG_*.csv | Stores KEGG pathway enrichment results |
+| DEG_summary.csv | Summarizes differential expression results |
+
+The following code lists the CSV files that actually exist in the results folder.
+
+```{r csv-files}
+if (dir.exists(tables_dir)) {
+
+  csv_files <- list.files(
+    tables_dir,
+    pattern = "\\.csv$",
+    recursive = TRUE,
+    full.names = FALSE
+  )
+
+  if (length(csv_files) > 0) {
+
+    csv_summary <- data.frame(
+      CSV_File = csv_files
+    )
+
+    knitr::kable(
+      csv_summary,
+      caption = "CSV files currently available in the results folder"
+    )
+
+  } else {
+
+    cat("No result CSV files have been saved in results/tables yet.")
+
+  }
+
+} else {
+
+  cat("The results/tables folder has not been created yet.")
+
+}
+```
+
+Only files that have actually been generated should be described as completed outputs.
+
+# 11. Generated plot files
+
+The following code lists the image files currently saved in the plots folder.
+
+```{r plot-files}
+if (dir.exists(plots_dir)) {
+
+  plot_files <- list.files(
+    plots_dir,
+    pattern = "\\.(png|jpg|jpeg|pdf)$",
+    ignore.case = TRUE,
+    recursive = TRUE,
+    full.names = FALSE
+  )
+
+  if (length(plot_files) > 0) {
+
+    plot_summary <- data.frame(
+      Plot_File = plot_files
+    )
+
+    knitr::kable(
+      plot_summary,
+      caption = "Plot files currently available in the results folder"
+    )
+
+  } else {
+
+    cat("No plot files have been saved in results/plots yet.")
+
+  }
+
+} else {
+
+  cat("The results/plots folder has not been created yet.")
+
+}
+```
+
+The report inserts the five selected plot images from the results/plots folder. If an image is not found, the report displays a message identifying the missing filename.
+
+# 12. Differential expression analysis
+
+Differential expression analysis will be performed using the DESeq2 package after the sample metadata have been verified.
+
+The planned comparisons are:
+
+1. Diabetic versus Control.
+2. DME versus Control.
+3. NPDR versus Control.
+
+The analysis will calculate log2 fold changes, p-values, and adjusted p-values.
+
+Genes with an adjusted p-value below 0.05 and an absolute log2 fold change greater than 1 will be considered candidate significant differentially expressed genes.
+
+The statistical design must also consider retinal site and any repeated or paired samples from the same donors, if applicable.
+
+The resulting DEG tables and volcano plots will be used to interpret gene expression changes.
+
+# 13. Functional enrichment analysis
+
+After identifying significant differentially expressed genes, functional enrichment analysis will be performed.
+
+## 13.1 Gene Ontology analysis
+
+Gene Ontology analysis will examine:
+
+- Biological processes.
+- Cellular components.
+- Molecular functions.
+
+It will help identify biological functions associated with the selected genes.
+
+## 13.2 KEGG pathway analysis
+
+KEGG pathway analysis will investigate biological pathways associated with the identified differentially expressed genes.
+
+The results will help explain possible molecular mechanisms involved in diabetic retinopathy.
+
+Enrichment results will be interpreted using adjusted p-values and the background universe of tested genes.
+
+# 14. Project file organization
+
+The project is organized into separate folders to improve clarity and reproducibility.
+
+```text
+DR_Bioinformatics_ICA3/
+│
+├── data/
+│   ├── GSE160306_human_retina_DR_totalRNA_counts.txt
+│   ├── README.txt
+│   └── sample_metadata_template.csv
+│
+├── code/
+│   ├── 01_import_data.R
+│   ├── 02_dataset_exploration.R
+│   ├── 03_metadata_inspection.R
+│   ├── 03_create_sample_metadata.R
+│   ├── 04_preprocessing_QC.R
+│   ├── 05_differential_expression_GO_KEGG.R
+│   └── 06_visualization_enrichment.R
+│
+├── results/
+│   ├── plots/
+│   └── tables/
+│
+├── report/
+│   └── final_report.Rmd
+│
+├── README.md
+└── .gitignore
+```
+
+Each R script performs a separate task in the analysis workflow.
+
+The `data` folder stores the dataset and metadata, while the `results` folder stores generated plots and tables.
+
+GitHub is used to maintain the project history and document the development process. The large raw count file is excluded from GitHub using `.gitignore`.
+
+# 15. Methodological limitations
+
+The following limitations must be considered:
+
+1. Sample identifiers must be accurately matched with the original GEO sample accessions.
+2. Incorrect disease-group assignments may affect the reliability of the comparisons.
+3. The heatmap represents expression variability, not statistical significance.
+4. Unequal sample sizes may influence statistical power.
+5. Gene identifier mapping may affect the number of genes available for enrichment analysis.
+6. Repeated or paired samples must be considered in the statistical design.
+7. Results from this dataset should be interpreted within the limitations of its sample size and experimental design.
+
+# 16. Final decision and conclusion
+
+The GSE160306 dataset provides a resource for investigating gene-expression changes in human retinal samples associated with diabetic retinopathy.
+
+The initial exploration identified 58,051 gene records and 79 samples. The initial checks reported no missing values and no duplicate Ensembl gene identifiers.
+
+The heatmap provides an exploratory view of expression variability across the samples. The PCA and sample count plots can provide additional information about sample relationships and group distribution.
+
+**Final decision based on the currently confirmed analysis:**
+
+The dataset is suitable for further transcriptomic analysis, but the initial exploration and heatmap are not sufficient to identify statistically significant disease-associated genes or pathways.
+
+The final biological conclusion must be based on verified sample metadata, appropriate preprocessing, differential expression analysis, and functional enrichment results.
+
+After completing these analyses, the project will determine which genes are significantly upregulated or downregulated and which biological processes and pathways are associated with the disease comparisons.
+
+Therefore, the current findings support continuing with the planned differential expression and enrichment analysis. No specific gene or pathway should be declared significantly associated with diabetic retinopathy until those statistical results are available.
+
+# 17. References
+
+1. NCBI Gene Expression Omnibus. GSE160306. https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE160306
+
+2. Love, M. I., Huber, W., and Anders, S. (2014). Moderated estimation of fold change and dispersion for RNA-seq data with DESeq2. *Genome Biology*, 15, 550. https://doi.org/10.1186/s13059-014-0550-8
+
+3. Yu, G., Wang, L. G., Han, Y., and He, Q. Y. (2012). clusterProfiler: an R package for comparing biological themes among gene clusters. *OMICS: A Journal of Integrative Biology*, 16(5), 284–287. https://doi.org/10.1089/omi.2011.0118
