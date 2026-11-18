@@ -1,41 +1,99 @@
 # Transcriptomic Analysis of Human Diabetic Retinopathy (GSE160306)
 
-This repository contains the complete bioinformatics analysis, data processing pipelines, visualizations, and report investigating gene expression changes across different stages of Diabetic Retinopathy (DR) using the human post-mortem retinal RNA-seq dataset **GSE160306**.
+A bioinformatics project investigating gene-expression changes associated with diabetic retinopathy (DR) using human post-mortem retinal RNA-sequencing data from the **GSE160306** dataset.
+
+The repository contains the analysis scripts, data-processing workflow, visualizations, result tables, and rendered reports used to explore retinal gene-expression patterns and compare non-proliferative diabetic retinopathy (NPDR) with healthy controls.
 
 ---
 
-## Deliverables & Rendered Outputs
-- **Rendered PDF Report:** [report/diabetic_retinopathy_transcriptomics_report.pdf](report/diabetic_retinopathy_transcriptomics_report.pdf)
-- **Rendered HTML Report:** [report/diabetic_retinopathy_transcriptomics_report.html](report/diabetic_retinopathy_transcriptomics_report.html)
-- **Quarto Source Notebook:** [report/diabetic_retinopathy_transcriptomics_report.qmd](report/diabetic_retinopathy_transcriptomics_report.qmd)
-- **Code Directory:** [code/](code/) (Scripts `01` through `09` and visualization routines)
-- **Results Directory:** [results/plots/](results/plots/) and [results/tables/](results/tables/)
+## Table of Contents
+
+- [Project Overview](#project-overview)
+- [Aim and Objectives](#aim-and-objectives)
+- [Dataset](#dataset)
+- [Dataset Exploration and Quality Control](#dataset-exploration-and-quality-control)
+- [Analysis Workflow](#analysis-workflow)
+- [Results and Visualizations](#results-and-visualizations)
+- [Differential Expression Results](#differential-expression-results)
+- [Gene Ontology Enrichment](#gene-ontology-enrichment)
+- [Repository Contents](#repository-contents)
+- [Tools and Packages](#tools-and-packages)
+- [How to Run the Project](#how-to-run-the-project)
+- [Key Findings](#key-findings)
+- [Limitations](#limitations)
+- [Author](#author)
+- [References](#references)
 
 ---
 
-## 1. Dataset Exploration Summary
+## Project Overview
 
-| Metric | Output Value | Description |
-|:---|:---:|:---|
-| **Total Ensembl Gene IDs** | 58,051 | Complete human gene transcript inventory |
-| **Total Biological Samples** | 79 | Human donor retinal punch biopsies |
-| **Total Data Matrix Columns** | 80 | Gene ID column + 79 sample count columns |
-| **Missing Values (NA)** | 0 | Complete count matrix with no missing entries |
-| **Duplicate Gene IDs** | 0 | Verified unique Ensembl identifiers |
-| **Minimum Count** | 0 | Baseline unexpressed state |
-| **Maximum Count** | 2,983,141 | Highly abundant structural/mitochondrial reads |
-| **Filtered Expressed Genes** | 27,457 | Retained with $\ge 10$ counts in $\ge 2$ samples |
+Diabetic retinopathy is a diabetes-related eye disease that affects the retinal blood vessels and can lead to vision loss. Understanding changes in gene expression can help reveal biological processes associated with disease development.
 
-> **Explanation:** The imported raw count matrix from GSE160306 contains 58,051 Ensembl gene features across 79 post-mortem retinal punch biopsies. Quality checks confirmed zero missing entries and zero duplicate IDs. Low-expression filtering retained 27,457 informative genes for statistical modeling.
+This project analyses RNA-sequencing count data from human retinal samples in GEO dataset **GSE160306**. The workflow includes data exploration, quality-control checks, sample visualisation, differential gene-expression analysis, and Gene Ontology (GO) biological-process enrichment.
+
+## Aim and Objectives
+
+### Aim
+
+To investigate transcriptomic changes associated with diabetic retinopathy using comparative analysis of human retinal RNA-sequencing data from GSE160306.
+
+### Objectives
+
+1. Obtain and inspect the GSE160306 raw gene-count dataset.
+2. assess the structure and quality of the count matrix.
+3. Organise sample metadata, including disease group and retinal site.
+4. Explore sample-level variation using library-size analysis, principal component analysis (PCA), and heatmaps.
+5. Identify differentially expressed genes in the NPDR-versus-Control comparison.
+6. Explore the biological processes represented by the differentially expressed genes using GO enrichment analysis.
 
 ---
 
-## 2. Sample Distribution Across Disease Stages and Retinal Sites
+## Dataset
 
-![Distribution of Retinal Samples Across Groups](results/plots/03_sample_count_plot.png)
+| Property | Description |
+|---|---|
+| GEO accession | GSE160306 |
+| Database | NCBI Gene Expression Omnibus (GEO) |
+| Organism | *Homo sapiens* |
+| Data type | RNA sequencing (RNA-seq) |
+| Tissue | Human post-mortem retinal samples |
+| Input data | Raw gene-count matrix |
+| Gene identifier | Ensembl gene ID |
+| Number of samples | 79 |
+| Number of gene features | 58,051 |
 
-| Disease Group | Retinal Site | Sample Count ($n$) |
-|:---|:---|:---:|
+**Dataset file:** `GSE160306_human_retina_DR_totalRNA_counts.txt`
+
+**Source:** [GSE160306 – NCBI Gene Expression Omnibus](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE160306)
+
+The raw dataset contains one Ensembl gene-ID column and 79 sample-count columns. If the raw data file is not included in this repository, download it from the GEO source and place it in the project's `data/` directory.
+
+---
+
+## Dataset Exploration and Quality Control
+
+The imported raw count matrix was checked for its dimensions, missing values, duplicate gene identifiers, and count range.
+
+| Metric | Result | Description |
+|---|---:|---|
+| Ensembl gene IDs | 58,051 | Number of gene features in the original matrix |
+| Biological samples | 79 | Number of retinal samples |
+| Total matrix columns | 80 | One gene-ID column plus 79 sample columns |
+| Missing values | 0 | No missing entries detected |
+| Duplicate gene IDs | 0 | No duplicated Ensembl identifiers detected |
+| Minimum raw count | 0 | Lowest observed count |
+| Maximum raw count | 2,983,141 | Highest observed count |
+| Expressed genes retained after filtering | 27,457 | Genes with at least 10 counts in at least 2 samples |
+
+Low-expression filtering retained 27,457 genes for downstream statistical modelling.
+
+### Sample distribution
+
+The 79 retinal samples were grouped by disease category and retinal site:
+
+| Disease group | Retinal site | Sample count |
+|---|---|---:|
 | Control | Macula | 10 |
 | Control | Periphery | 10 |
 | Diabetic (no retinopathy) | Macula | 10 |
@@ -44,100 +102,263 @@ This repository contains the complete bioinformatics analysis, data processing p
 | DME / PDR | Periphery | 10 |
 | NPDR | Macula | 9 |
 | NPDR | Periphery | 10 |
-| **Total Retinal Samples** | **All Groups** | **79** |
+| **Total** | **All groups** | **79** |
 
-> **Explanation:** The 79 samples from 43 donor eyes are evenly balanced across disease stages and anatomical sites (10 samples per group, except NPDR Macula with 9 samples), providing balanced statistical power for comparisons between macular and peripheral retinas.
-
----
-
-## 3. Sequencing Depth and Library Size Quality Control
-
-![Sequencing Library Sizes Across Retinal Samples](results/plots/library_sizes.png)
-
-> **Explanation:** Mapped sequencing depths range from 16.7 million to 40.1 million reads per sample, with an average library size of 26.4 million reads. The uniform distribution confirms consistent sequencing depth across all 79 libraries with no technical dropouts.
+The dataset represents 43 donor eyes. Sample metadata and group assignments are used to interpret the visualisations and comparisons.
 
 ---
 
-## 4. Principal Component Analysis (PCA)
+## Analysis Workflow
 
-![PCA Scatter Plot of Retinal Gene Expression Profiles](results/plots/02_PCA_scatter_plot.png)
+The project follows these main stages:
 
-> **Explanation:** Unsupervised PCA on VST-transformed data captures 51.97% of total variance (PC1 = 31.47%, PC2 = 20.50%). Samples separate primarily by anatomical location (circles = Macula, triangles = Periphery) and donor biological sex (quadrant clusters), with secondary separation along the disease progression axis.
-
----
-
-## 5. Top 30 Most Variable Genes and Expression Heatmap
-
-![Annotated Heatmap of Top 30 Most Variable Genes](results/plots/01_annotated_heatmap.png)
-
-| Ensembl ID | Associated Gene | Chromosome | Variance | Primary Biological Function |
-|:---|:---|:---:|:---:|:---|
-| `ENSG00000229807` | *AL031777.1* | Chr 14 | 23.08 | Long non-coding RNA regulatory transcript |
-| `ENSG00000114374` | *USP9Y* | Chr Y | 18.82 | Male-specific ubiquitin peptidase 9 |
-| `ENSG00000012817` | *KCNQ1* | Chr 11 | 17.15 | Voltage-gated potassium channel subunit |
-| `ENSG00000183878` | *UTY* | Chr Y | 15.81 | Histone demethylase UTY (male-specific) |
-| `ENSG00000067048` | *DDX3Y* | Chr Y | 15.75 | DEAD-box helicase 3 Y-linked |
-| `ENSG00000131002` | *CYP1A1* | Chr 15 | 13.69 | Cytochrome P450 monooxygenase |
-| `ENSG00000129824` | *RPS4Y1* | Chr Y | 11.69 | Ribosomal protein S4 Y-linked |
-| `ENSG00000233864` | *TTTY15* | Chr Y | 10.50 | Testis-specific transcript Y-linked (lncRNA) |
-| `ENSG00000067646` | *ZFY* | Chr Y | 8.23 | Zinc finger protein Y-linked |
-| `ENSG00000165246` | *NLGN4Y* | Chr Y | 7.49 | Neuroligin 4 Y-linked cell adhesion |
-| `ENSG00000198692` | *EIF1AY* | Chr Y | 5.92 | Translation initiation factor 1A Y-linked |
-| `ENSG00000099715` | *COL1A1* | Chr 17 | 5.92 | Collagen type I alpha 1 structural fibril |
-| `ENSG00000120738` | *EGR1* | Chr 5 | 4.52 | Early growth response 1 transcription factor |
-| `ENSG00000170345` | *FOS* | Chr 14 | 4.50 | c-Fos proto-oncogene (AP-1 complex) |
-| `ENSG00000135406` | *FOSB* | Chr 19 | 4.48 | AP-1 transcription factor subunit |
-
-> **Explanation:** Hierarchical clustering reveals that primary cohort variance is driven by Y-linked genes (*UTY*, *DDX3Y*, *RPS4Y1*, *ZFY*, *NLGN4Y*) that separate male from female donors, followed by anatomical differences between macular and peripheral tissues and immediate-early stress genes (*FOS*, *EGR1*).
+1. **Data acquisition:** Obtain the GSE160306 RNA-seq count matrix from NCBI GEO.
+2. **Data import:** Load the raw counts into R and identify the Ensembl gene-ID column and sample columns.
+3. **Data exploration:** Check matrix dimensions, missing values, duplicated identifiers, and count ranges.
+4. **Metadata preparation:** Organise sample identifiers, disease groups, and retinal sites.
+5. **Quality control and visualisation:** Examine library sizes, sample distribution, PCA, and gene-expression patterns.
+6. **Gene filtering and transformation:** Remove low-expression genes and prepare data for exploratory analysis.
+7. **Differential expression:** Use DESeq2 to compare NPDR samples with healthy Control samples.
+8. **Functional interpretation:** Perform GO Biological Process enrichment analysis on the selected differentially expressed genes.
 
 ---
 
-## 6. Differential Gene Expression: NPDR vs. Healthy Control
+## Results and Visualizations
 
-![Volcano Plot of Differential Gene Expression in NPDR vs Control](results/plots/volcano_NPDR_Control.png)
+The plots below are included from the project's `results/plots/` directory. GitHub will display them in this README when the image files are committed at the paths shown.
 
-| Ensembl ID | Symbol | Base Mean | $\log_2\text{FC}$ | Wald Stat | Adjusted $p$ (FDR) | Expression Trend & Biological Note |
-|:---|:---|:---:|:---:|:---:|:---|
-| `ENSG00000130300` | *PLA2G4C* | 6.53 | **+2.83** | +5.48 | $3.18 \times 10^{-4}$ | Upregulated; phospholipase A2 inflammatory response |
-| `ENSG00000172482` | *SLC38A11* | 7.15 | **+2.78** | +4.51 | $6.44 \times 10^{-3}$ | Upregulated; amino acid membrane transporter |
-| `ENSG00000254781` | *AL137145.1* | 9.86 | **+1.99** | +4.79 | $2.66 \times 10^{-3}$ | Upregulated; long non-coding RNA |
-| `ENSG00000157766` | *ACACB* | 13.88 | **+1.86** | +4.19 | $1.22 \times 10^{-2}$ | Upregulated; fatty acid biosynthesis |
-| `ENSG00000234816` | *AC008770.2* | 12.97 | **+1.61** | +4.16 | $1.30 \times 10^{-2}$ | Upregulated; regulatory lncRNA |
-| `ENSG00000228065` | *AL354720.1* | 85.04 | **+1.34** | +3.71 | $3.63 \times 10^{-2}$ | Upregulated; non-coding transcript |
-| `ENSG00000215572` | *AC010970.1* | 5.63 | **-1.52** | -5.76 | $2.23 \times 10^{-4}$ | Downregulated; non-coding RNA |
-| `ENSG00000143248` | *RGS5* | 586.28 | **-1.03** | -5.53 | $3.18 \times 10^{-4}$ | **Downregulated; pericyte marker reflecting pericyte loss** |
-| `ENSG00000187513` | *GDF7* | 17.57 | **-1.06** | -5.46 | $3.18 \times 10^{-4}$ | Downregulated; growth differentiation factor 7 |
-| `ENSG00000158859` | *ADAMTS4* | 182.25 | **-1.61** | -5.42 | $3.18 \times 10^{-4}$ | **Downregulated; ECM proteoglycan degradation metallopeptidase** |
-| `ENSG00000164379` | *BBOX1* | 6.94 | **-1.38** | -5.13 | $9.89 \times 10^{-4}$ | Downregulated; gamma-butyrobetaine hydroxylase |
-| `ENSG00000197815` | *RGL3* | 5.52 | **-2.18** | -4.76 | $2.76 \times 10^{-3}$ | Downregulated; Ral guanine nucleotide dissociator |
-| `ENSG00000175592` | *PRSS56* | 11.32 | **-2.11** | -4.35 | $8.91 \times 10^{-3}$ | Downregulated; serine protease 56 |
-| `ENSG00000122641` | *INHBA* | 255.33 | **-1.92** | -4.23 | $1.16 \times 10^{-2}$ | **Downregulated; Inhibin beta A (Activin A) TGF-beta signaling** |
-| `ENSG00000151617` | *EDNRA* | 10.66 | **-1.08** | -4.35 | $8.91 \times 10^{-3}$ | **Downregulated; endothelin receptor A vascular tone regulator** |
-| `ENSG00000163638` | *ADAMTS9* | 242.48 | **-1.16** | -3.73 | $3.49 \times 10^{-2}$ | **Downregulated; anti-angiogenic matrix metallopeptidase** |
-| `ENSG00000138061` | *CYP1B1* | 89.48 | **-1.01** | -3.80 | $3.04 \times 10^{-2}$ | Downregulated; cytochrome P450 1B1 capillary regulator |
-| `ENSG00000206384` | *COL6A6* | 5.70 | **-1.52** | -3.84 | $2.72 \times 10^{-2}$ | **Downregulated; collagen type VI alpha 6 basement anchor** |
+### 1. Distribution of retinal samples across groups
 
-> **Explanation:** Testing NPDR against Control identified 46 statistically significant DEGs ($\text{padj} < 0.05$, $|\log_2\text{FC}| > 1.0$), with 10 upregulated and 36 downregulated genes. The downregulated set is enriched for markers of pericyte loss (*RGS5*), basement membrane disassembly (*ADAMTS4*, *ADAMTS9*, *COL6A6*), and impaired vasoactivity (*EDNRA*, *INHBA*).
+This plot summarises the number of samples in each disease-group and retinal-site combination.
 
----
+![Distribution of retinal samples across groups](results/plots/03_sample_count_plot.png)
 
-## 7. Gene Ontology (GO) Biological Process Enrichment Analysis
+### 2. Sequencing library sizes
 
-| GO Term ID | Enriched Biological Process Description | Gene Ratio | Bg Ratio | Fold Enrichment | Adjusted $p$ (FDR) | Associated Genes |
-|:---|:---|:---:|:---:|:---:|:---:|:---|
-| `GO:0071372` | Cellular response to follicle-stimulating hormone stimulus | 2/24 | 10/18842 | 157.02 | **0.0375** | *INHBA*, *EDNRA* |
-| `GO:0032354` | Response to follicle-stimulating hormone | 2/24 | 14/18842 | 112.15 | **0.0375** | *INHBA*, *EDNRA* |
-| `GO:0071371` | Cellular response to gonadotropin stimulus | 2/24 | 17/18842 | 92.36 | **0.0375** | *INHBA*, *EDNRA* |
-| `GO:0003228` | Atrial cardiac muscle tissue development | 2/24 | 19/18842 | 82.64 | **0.0375** | *TBX18*, *EDNRA* |
-| `GO:0030198` | **Extracellular matrix organization** | 4/24 | 278/18842 | **11.30** | **0.0375** | *CYP1B1*, *ADAMTS4*, *ADAMTS9*, *COL6A6* |
-| `GO:0043062` | **Extracellular structure organization** | 4/24 | 279/18842 | **11.26** | **0.0375** | *CYP1B1*, *ADAMTS4*, *ADAMTS9*, *COL6A6* |
-| `GO:0045229` | **External encapsulating structure organization** | 4/24 | 280/18842 | **11.22** | **0.0375** | *CYP1B1*, *ADAMTS4*, *ADAMTS9*, *COL6A6* |
-| `GO:0034698` | Response to gonadotropin | 2/24 | 24/18842 | 65.42 | **0.0375** | *INHBA*, *EDNRA* |
+This plot compares the mapped sequencing read counts across the 79 retinal samples. The reported library sizes range from approximately 16.7 million to 40.1 million reads, with an average of approximately 26.4 million reads.
 
-> **Explanation:** Over-representation analysis identified 8 statistically significant GO Biological Process terms ($\text{padj} < 0.05$). The terms converge on extracellular matrix organization (`GO:0030198`) and peptide hormone/vasoactive signaling, highlighting basement membrane remodeling in early NPDR.
+![Sequencing library sizes across retinal samples](results/plots/library_sizes.png)
+
+### 3. Principal Component Analysis (PCA)
+
+PCA is used to explore similarities and differences between samples based on their gene-expression profiles. The first two principal components account for 51.97% of the total variance (PC1: 31.47%; PC2: 20.50%).
+
+![PCA scatter plot of retinal gene-expression profiles](results/plots/02_PCA_scatter_plot.png)
+
+### 4. Annotated heatmap of the top 30 most variable genes
+
+The heatmap displays expression patterns for the 30 most variable genes across the retinal samples, together with sample annotations.
+
+![Annotated heatmap of the top 30 most variable genes](results/plots/01_annotated_heatmap.png)
+
+### 5. Volcano plot: NPDR versus Control
+
+The volcano plot displays the estimated log2 fold change and adjusted statistical significance for genes in the NPDR-versus-Control comparison.
+
+![Volcano plot of differential expression in NPDR versus Control](results/plots/volcano_NPDR_Control.png)
 
 ---
 
-## 8. Conclusions
+## Differential Expression Results
 
-This study delivers a comprehensive comparative transcriptomic evaluation of human diabetic retinopathy utilizing the post-mortem retinal dataset GSE160306. By applying robust preprocessing, variance stabilization, and negative binomial modeling, we identified 46 statistically significant differentially expressed genes that characterize the transition from healthy retina to non-proliferative diabetic retinopathy. Our findings provide compelling transcriptomic evidence for the loss of pericyte identity markers (*RGS5*), degradation of extracellular matrix structural integrity (*ADAMTS4*, *ADAMTS9*, *COL6A6*, *CYP1B1*), and impaired vasoactive receptor networks (*EDNRA*, *INHBA*). Furthermore, multidimensional ordination established that anatomical topography and biological sex constitute major determinants of retinal transcriptomic variance, establishing the imperative for spatially stratified experimental designs in ocular bioinformatics. These identified genes and pathways illuminate the molecular pathophysiology of early diabetic retinopathy and present promising candidate biomarkers and therapeutic targets for early clinical intervention prior to irreversible vision loss.
+Differential expression analysis was performed for **NPDR versus healthy Control** using DESeq2.
+
+The reported analysis identified **46 statistically significant differentially expressed genes (DEGs)** using the criteria:
+
+- Adjusted p-value (FDR) < 0.05
+- Absolute log2 fold change > 1
+
+| Expression direction | Number of genes |
+|---|---:|
+| Upregulated | 10 |
+| Downregulated | 36 |
+| **Total significant DEGs** | **46** |
+
+In this comparison:
+
+- **Upregulated** means the gene has higher estimated expression in NPDR than in Control.
+- **Downregulated** means the gene has lower estimated expression in NPDR than in Control.
+- A positive log2 fold change indicates higher expression in NPDR for this contrast.
+- A negative log2 fold change indicates lower expression in NPDR for this contrast.
+
+### Examples of identified genes
+
+| Gene symbol | log2 fold change | Adjusted p-value | Direction |
+|---|---:|---:|---|
+| *PLA2G4C* | +2.83 | 3.18 × 10⁻⁴ | Upregulated |
+| *SLC38A11* | +2.78 | 6.44 × 10⁻³ | Upregulated |
+| *ACACB* | +1.86 | 1.22 × 10⁻² | Upregulated |
+| *RGS5* | −1.03 | 3.18 × 10⁻⁴ | Downregulated |
+| *ADAMTS4* | −1.61 | 3.18 × 10⁻⁴ | Downregulated |
+| *INHBA* | −1.92 | 1.16 × 10⁻² | Downregulated |
+| *EDNRA* | −1.08 | 8.91 × 10⁻³ | Downregulated |
+| *ADAMTS9* | −1.16 | 3.49 × 10⁻² | Downregulated |
+
+These are examples from the reported NPDR-versus-Control results; consult the result tables for the complete list.
+
+---
+
+## Gene Ontology Enrichment
+
+GO Biological Process over-representation analysis identified **8 statistically significant terms** using an adjusted p-value threshold of less than 0.05.
+
+One of the highlighted results was:
+
+| GO term ID | Biological process | Adjusted p-value | Associated genes |
+|---|---|---:|---|
+| `GO:0030198` | Extracellular matrix organization | 0.0375 | *CYP1B1*, *ADAMTS4*, *ADAMTS9*, *COL6A6* |
+
+Other enriched terms in the reported results included extracellular structure organisation and responses to gonadotropin-related stimuli.
+
+The enrichment results suggest that extracellular matrix organisation and related biological processes may be relevant to the NPDR-versus-Control gene-expression differences observed in this dataset.
+
+---
+
+## Key Findings
+
+- The raw count matrix contained 58,051 gene features and 79 retinal samples.
+- Initial quality checks found no missing values and no duplicate Ensembl gene identifiers.
+- Filtering retained 27,457 expressed genes for downstream modelling.
+- The first two PCA components explained 51.97% of the total variance.
+- The NPDR-versus-Control comparison identified 46 significant DEGs: 10 upregulated and 36 downregulated.
+- GO analysis reported 8 significant Biological Process terms, including extracellular matrix organisation.
+
+These findings describe the analysed dataset and the reported comparisons. They should be interpreted in the context of the study design, sample metadata, and limitations of post-mortem tissue data.
+
+---
+
+## Repository Contents
+
+The following is the intended organisation of the main project files. Actual filenames and folders in the repository should be kept consistent with this structure.
+
+```text
+DR-Bioinformatics-ICA3-2021asp48/
+│
+├── code/
+│   ├── 01_*.R
+│   ├── 02_*.R
+│   ├── 03_*.R
+│   ├── 04_*.R
+│   ├── 05_*.R
+│   ├── 06_*.R
+│   ├── 07_*.R
+│   ├── 08_*.R
+│   ├── 09_*.R
+│   └── visualization scripts
+│
+├── data/
+│   └── GSE160306_human_retina_DR_totalRNA_counts.txt
+│
+├── results/
+│   ├── plots/
+│   │   ├── 01_annotated_heatmap.png
+│   │   ├── 02_PCA_scatter_plot.png
+│   │   ├── 03_sample_count_plot.png
+│   │   ├── library_sizes.png
+│   │   └── volcano_NPDR_Control.png
+│   │
+│   └── tables/
+│
+├── report/
+│   ├── diabetic_retinopathy_transcriptomics_report.qmd
+│   ├── diabetic_retinopathy_transcriptomics_report.html
+│   └── diabetic_retinopathy_transcriptomics_report.pdf
+│
+├── .gitignore
+└── README.md
+```
+
+### Deliverables
+
+- **Rendered PDF report:** [`report/diabetic_retinopathy_transcriptomics_report.pdf`](report/diabetic_retinopathy_transcriptomics_report.pdf)
+- **Rendered HTML report:** [`report/diabetic_retinopathy_transcriptomics_report.html`](report/diabetic_retinopathy_transcriptomics_report.html)
+- **Quarto source notebook:** [`report/diabetic_retinopathy_transcriptomics_report.qmd`](report/diabetic_retinopathy_transcriptomics_report.qmd)
+- **Analysis scripts:** [`code/`](code/)
+- **Plots:** [`results/plots/`](results/plots/)
+- **Result tables:** [`results/tables/`](results/tables/)
+
+---
+
+## Tools and Packages
+
+### Tools
+
+- R
+- RStudio
+- Quarto
+- Git
+- GitHub
+
+### R packages
+
+The workflow uses packages for data manipulation, statistical analysis, annotation, enrichment, and visualisation, including:
+
+- `DESeq2`
+- `ggplot2`
+- `dplyr`
+- `tidyr`
+- `pheatmap`
+- `AnnotationDbi`
+- `org.Hs.eg.db`
+- `clusterProfiler`
+
+Install any missing packages before running the scripts. The exact packages required depend on the script being executed.
+
+---
+
+## How to Run the Project
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/shaathveegaa/DR-Bioinformatics-ICA3-2021asp48.git
+   ```
+
+2. Open the cloned project folder in RStudio.
+
+3. If the raw count matrix is not included, download `GSE160306_human_retina_DR_totalRNA_counts.txt` from [NCBI GEO GSE160306](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE160306).
+
+4. Place the dataset in the `data/` directory, following the path expected by the scripts.
+
+5. Install the required R packages.
+
+6. Run the numbered scripts in `code/` in the intended order. Check each script's input and output paths before running it.
+
+7. To regenerate the report, open the Quarto file:
+
+   `report/diabetic_retinopathy_transcriptomics_report.qmd`
+
+   Render it using Quarto in RStudio or from the terminal:
+
+   ```bash
+   quarto render report/diabetic_retinopathy_transcriptomics_report.qmd
+   ```
+
+---
+
+## Limitations
+
+- The analysis depends on the quality and availability of the public GSE160306 dataset.
+- Correct sample metadata and disease-group assignments are essential for valid comparisons.
+- Retinal site and donor-related biological variation can influence gene-expression patterns and should be considered when interpreting results.
+- Differential expression results represent statistical associations and do not, by themselves, establish causation.
+- Findings from this dataset require further validation using independent datasets or experimental studies before clinical conclusions can be made.
+
+---
+
+## Author
+
+**Shaathveegaa Rajeshkannan**  
+BSc (Hons) in Computer Science  
+University of Vavuniya, Sri Lanka
+
+## Repository
+
+[DR-Bioinformatics-ICA3-2021asp48](https://github.com/shaathveegaa/DR-Bioinformatics-ICA3-2021asp48)
+
+## References
+
+1. NCBI Gene Expression Omnibus. **GSE160306**. https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE160306
+2. Love, M. I., Huber, W., & Anders, S. (2014). Moderated estimation of fold change and dispersion for RNA-seq data with DESeq2. *Genome Biology*, 15, 550. https://doi.org/10.1186/s13059-014-0550-8
+3. R Project for Statistical Computing. https://www.r-project.org/
+4. Bioconductor. https://www.bioconductor.org/
